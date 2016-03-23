@@ -9,28 +9,51 @@ var BJ_REPORT = (function(global) {
     if (global.BJ_REPORT) return global.BJ_REPORT;
 
     var _error = [];
+    // 默认配置
     var _config = {
-        id: 0,
-        uin: 0,
-        url: "",
-        combo: 1,
-        ext: null,
+        id: 0, // 上传id，申请时生成的数字，默认从1开始累加
+        uin: 0, // 指定用户 number , (默认已经读取 qq uin)
+        url: "", // 指定上报地址
+        combo: 1, // combo 是否合并上报， 0 关闭， 1 启动（默认）
+        ext: null, // 扩展属性，后端做扩展处理属性。例如：存在 msid 就会分发到 monitor.server.com
         level: 4, // 1-debug 2-info 4-error
-        ignore: [],
-        random: 1,
-        delay: 1000,
+        ignore: [], // 忽略某个错误 [/Script error/i]
+        random: 1, // 抽样上报，1~0 之间数值，  1为100%上报  （默认 1）
+        delay: 1000, // 当 combo= 1 可用，延迟多少毫秒，合并缓冲区中的上报（默认）
         submit: null
     };
 
+    /**
+     * 判断对象类型
+     *
+     * @param  {Object} o 对象
+     * @param  {String} type 对象类型
+     * @param  {Bool}
+     *
+     */
     var _isOBJByType = function(o, type) {
         return Object.prototype.toString.call(o) === "[object " + (type || "Object") + "]";
     };
 
+    /**
+     * 判断是否是对象
+     *
+     * @param  {Object} obj 对象
+     * @param  {Bool}
+     *
+     */
     var _isOBJ = function(obj) {
         var type = typeof obj;
         return type === "object" && !!obj;
     };
 
+    /**
+     * 判断对象是否为空，数字对象，返回false
+     *
+     * @param  {Object} obj 对象
+     * @param  {Bool}
+     *
+     */
     var _isEmpty = function(obj) {
         if (obj === null) return true;
         if (_isOBJByType(obj, 'Number')) {
@@ -39,15 +62,17 @@ var BJ_REPORT = (function(global) {
         return !obj;
     };
 
+    // global是window对象，存一下原始的window.onerror
     var orgError = global.onerror;
     // rewrite window.oerror
     global.onerror = function(msg, url, line, col, error) {
         var newMsg = msg;
 
         if (error && error.stack) {
+            // 解析堆栈错误
             newMsg = _processStackMsg(error);
         }
-
+        // 事件类型的错误，拼接错误类型，元素名字，元素的src值
         if (_isOBJByType(newMsg, "Event")) {
             newMsg += newMsg.type ? ("--" + newMsg.type + "--" + (newMsg.target ? (newMsg.target.tagName + "::" + newMsg.target.src) : "")) : "";
         }
