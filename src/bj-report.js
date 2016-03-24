@@ -85,9 +85,17 @@ var BJ_REPORT = (function(global) {
         });
 
         _send();
+        // 调用原始的window.onerror，传入参数
         orgError && orgError.apply(global, arguments);
     };
 
+    /**
+     * 解析错误对象
+     *
+     * @param  {Object} errObj 对象
+     * @return  {Object} 解析后的错误对象
+     *
+     */
     var _processError = function(errObj) {
         try {
             if (errObj.stack) {
@@ -119,6 +127,13 @@ var BJ_REPORT = (function(global) {
         }
     };
 
+    /**
+     * 解析错误对象堆栈信息
+     *
+     * @param  {Object} error 对象
+     * @return  {Object} 解析后的错误对象字符串
+     *
+     */
     var _processStackMsg = function(error) {
         var stack = error.stack.replace(/\n/gi, "").split(/\bat\b/).slice(0, 5).join("@").replace(/\?[^:]+/gi, "");
         var msg = error.toString();
@@ -128,6 +143,15 @@ var BJ_REPORT = (function(global) {
         return stack;
     };
 
+    /**
+     * 解析错误对象堆栈信息
+     *
+     * @param  {Object} error 对象
+     * @param  {Number} index 错误索引
+     *
+     * @return  {Object} 解析后的错误对象字符串
+     *
+     */
     var _error_tostring = function(error, index) {
         var param = [];
         var params = [];
@@ -157,19 +181,35 @@ var BJ_REPORT = (function(global) {
         return [params.join("&"), stringify.join(","), param.join("&")];
     };
 
+    // 上报图片数组
     var _imgs = [];
+
+    /**
+     * 立即上报错误
+     * @param  {String} url 上报地址
+     *
+     */
     var _submit = function(url) {
+        // 如果有submit回调，执行外部参数的上报
         if (_config.submit) {
             _config.submit(url);
         } else {
+            // 给图片的src赋值(上报)
             var _img = new Image();
             _imgs.push(_img);
             _img.src = url;
         }
     };
 
+    // 错误列表
     var error_list = [];
     var comboTimeout = 0;
+
+    /**
+     * 上报错误，如果不是立即上报，则把错误信息插入error_list中
+     * @param  {Bool} isReoprtNow 是否立即上报
+     *
+     */
     var _send = function(isReoprtNow) {
         if (!_config.report) return;
 
@@ -188,11 +228,15 @@ var BJ_REPORT = (function(global) {
                 }
             }
             if (!isIgnore) {
+                // 默认合并错误
                 if (_config.combo) {
                     error_list.push(error_str[0]);
                 } else {
+                    // 不合并上报，立即上报
                     _submit(_config.report + error_str[2] + "&_t=" + (+new Date));
                 }
+
+                // 使用外部传进来的上报方式
                 _config.onReport && (_config.onReport(_config.id, error));
             }
         }
@@ -202,6 +246,7 @@ var BJ_REPORT = (function(global) {
         if (count) {
             var comboReport = function() {
                 clearTimeout(comboTimeout);
+                // 拼接错误数 参数
                 _submit(_config.report + error_list.join("&") + "&count=" + error_list.length + "&_t=" + (+new Date));
                 comboTimeout = 0;
                 error_list = [];
@@ -209,15 +254,17 @@ var BJ_REPORT = (function(global) {
 
             if (isReoprtNow) {
                 comboReport(); // 立即上报
-            } else if (!comboTimeout) {
+            } else if (!comboTimeout) { // 延迟上报
                 comboTimeout = setTimeout(comboReport, _config.delay); // 延迟上报
             }
         }
     };
 
     var report = {
-        push: function(msg) { // 将错误推到缓存池
-            // 抽样
+        // 将错误推到缓存池
+        push: function(msg) {
+            // 抽样，随机数大于配置的随机数时，才上报
+            // todo 抽样方法，暴露出去
             if (Math.random() >= _config.random) {
                 return report;
             }
@@ -229,15 +276,19 @@ var BJ_REPORT = (function(global) {
             if (_config.ext && !data.ext) {
                 data.ext = _config.ext;
             }
+            // 在全局_error数组中，添加错误
             _error.push(data);
+            // 发送错误
             _send();
             return report;
         },
+        // 上报错误，如果有错误对象，则插入_error中，然后立即上报
         report: function(msg) { // error report
             msg && report.push(msg);
             _send(true);
             return report;
         },
+        // 2-info
         info: function(msg) { // info report
             if (!msg) {
                 return report;
@@ -253,6 +304,7 @@ var BJ_REPORT = (function(global) {
             report.push(msg);
             return report;
         },
+        // 1-debug
         debug: function(msg) { // debug report
             if (!msg) {
                 return report;
@@ -268,16 +320,18 @@ var BJ_REPORT = (function(global) {
             report.push(msg);
             return report;
         },
+        // 入口方法
         init: function(config) { // 初始化
+            // 外部数据合并
             if (_isOBJ(config)) {
                 for (var key in config) {
                     _config[key] = config[key];
                 }
             }
-            // 没有设置id将不上报
+            // 没有设置id将不上报，id为纯数字
             var id = parseInt(_config.id, 10);
             if (id) {
-                // set default report url and uin
+                // set default report url and uin， 如果是qq域名，则上报到badjs2.qq.com/badjs
                 if (/qq\.com$/gi.test(location.hostname)) {
                     if (!_config.url) {
                         _config.url = "//badjs2.qq.com/badjs";
